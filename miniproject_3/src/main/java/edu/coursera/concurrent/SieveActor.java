@@ -2,6 +2,8 @@ package edu.coursera.concurrent;
 
 import edu.rice.pcdp.Actor;
 
+import static edu.rice.pcdp.PCDP.finish;
+
 /**
  * An actor-based implementation of the Sieve of Eratosthenes.
  *
@@ -19,7 +21,22 @@ public final class SieveActor extends Sieve {
      */
     @Override
     public int countPrimes(final int limit) {
-        throw new UnsupportedOperationException();
+        //throw new UnsupportedOperationException();
+        final SieveActorActor sieveActorActor = new SieveActorActor();
+        finish(() -> {
+            for (int i = 3; i <= limit; i += 2) {
+                sieveActorActor.send(i);
+            }
+            sieveActorActor.send(0);
+        });
+
+        int numPrimes = 1;
+        SieveActorActor loopActor = sieveActorActor;
+        while (loopActor != null) {
+            numPrimes += loopActor.numLocalPrimes;
+            loopActor = loopActor.nextActorActor;
+        }
+        return numPrimes;
     }
 
     /**
@@ -27,6 +44,12 @@ public final class SieveActor extends Sieve {
      * parallel.
      */
     public static final class SieveActorActor extends Actor {
+        //throw new UnsupportedOperationException();
+        static final int MAX_LOCAL_PRIMES = 1000;
+
+        SieveActorActor nextActorActor = null;
+        int localPrimes[] = new int[MAX_LOCAL_PRIMES];
+        int numLocalPrimes = 0;
         /**
          * Process a single message sent to this actor.
          *
@@ -36,7 +59,34 @@ public final class SieveActor extends Sieve {
          */
         @Override
         public void process(final Object msg) {
-            throw new UnsupportedOperationException();
+            final int candidate = (Integer) msg;
+
+            if (candidate <= 0) {
+                if (nextActorActor != null) {
+                    nextActorActor.send(msg);
+                }
+                return;
+            }
+
+            if (isLocalPrime(candidate)) {
+                if (numLocalPrimes < MAX_LOCAL_PRIMES) {
+                    localPrimes[numLocalPrimes++] = candidate;
+                    return;
+                }
+                if (nextActorActor == null) {
+                    nextActorActor = new SieveActorActor();
+                }
+                nextActorActor.send(candidate);
+            }
+        }
+
+        boolean isLocalPrime(int candidate) {
+            for (int i = 0; i < numLocalPrimes; i++) {
+                if (candidate % localPrimes[i] == 0) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }
